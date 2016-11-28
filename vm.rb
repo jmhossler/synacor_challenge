@@ -1,3 +1,0 @@
-class VirtualMachine
-  memory =
-end
