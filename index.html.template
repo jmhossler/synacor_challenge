@@ -1,0 +1,7 @@
+<h1>Output:</h1>
+
+<form action="/step/" method="POST">
+<div>{{printf "%s" .Output}}</div>
+<div><input type="submit" value="Step"></div>
+<div><input type="submit" value="Execute"></div>
+</form>

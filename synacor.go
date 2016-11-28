@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -88,12 +87,15 @@ func main() {
 		vm.memory[int(i/2)] = read_uint16(byte_array[i : i+2])
 	}
 
-	tmpl := "index.html.template"
+	//tmpl := "index.html.template"
 
 	normal_handler := func(w http.ResponseWriter, r *http.Request) {
-		t, err := template.ParseFiles(tmpl)
-		check(err)
-		t.Execute(w, vm)
+		fmt.Fprintf(w, "%s", vm.output)
+		/*
+			t, err := template.ParseFiles(tmpl)
+			check(err)
+			t.Execute(w, vm)
+		*/
 	}
 
 	var curr_address uint16 = 0
@@ -102,17 +104,21 @@ func main() {
 		curr_address, err = step(&vm, curr_address)
 		check(err)
 
-		t, err := template.ParseFiles(tmpl)
-		check(err)
-		t.Execute(w, vm)
+		/*
+			t, err := template.ParseFiles(tmpl)
+			check(err)
+			t.Execute(w, vm)
+		*/
 	}
 
 	execute_handler := func(w http.ResponseWriter, r *http.Request) {
 		go execute(&vm, curr_address)
-		t, err := template.ParseFiles(tmpl)
-		check(err)
+		/*
+			t, err := template.ParseFiles(tmpl)
+			check(err)
 
-		t.Execute(w, vm)
+			t.Execute(w, vm)
+		*/
 	}
 
 	http.HandleFunc("/step", step_handler)
