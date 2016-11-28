@@ -5,9 +5,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"html/template"
 	"io/ioutil"
+	"log"
+	"net/http"
 	"os"
-	"strconv"
 )
 
 var function_map = map[string]func(*VM, uint16) (uint16, error){
@@ -66,14 +68,19 @@ type VM struct {
 	memory   [32768]uint16
 	register [8]uint16
 	stack    Stack
-	output   string
+	output   []byte
 	input    *os.File
 }
 
 func main() {
+	if len(os.Args[1:]) < 1 {
+		panic(errors.New("No arguments given"))
+	}
+
 	input_file := process_args(os.Args[1:])
-	var vm VM
+
 	var byte_array []byte
+	var vm VM
 	byte_array, err := ioutil.ReadFile(input_file)
 	check(err)
 
@@ -81,16 +88,51 @@ func main() {
 		vm.memory[int(i/2)] = read_uint16(byte_array[i : i+2])
 	}
 
+	tmpl := "index.html.template"
+
+	normal_handler := func(w http.ResponseWriter, r *http.Request) {
+		t, err := template.ParseFiles(tmpl)
+		check(err)
+		t.Execute(w, vm)
+	}
+
+	var curr_address uint16 = 0
+	step_handler := func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		curr_address, err = step(&vm, curr_address)
+		check(err)
+
+		t, err := template.ParseFiles(tmpl)
+		check(err)
+		t.Execute(w, vm)
+	}
+
+	execute_handler := func(w http.ResponseWriter, r *http.Request) {
+		go execute(&vm, curr_address)
+		t, err := template.ParseFiles(tmpl)
+		check(err)
+
+		t.Execute(w, vm)
+	}
+
+	http.HandleFunc("/step", step_handler)
+	http.HandleFunc("/", normal_handler)
+	http.HandleFunc("/execute", execute_handler)
+
+	log.Fatal(http.ListenAndServe("localhost:8000", nil))
+
 	//output_memory(os.Stdout, vm)
-	execute(&vm, 0)
-	fmt.Printf("%s\n", vm.output)
+	//execute(&vm, 0)
+	//fmt.Printf("%s\n", vm.output)
 }
 
 func execute(vm *VM, address uint16) {
 	var err error
 	for {
 		address, err = step(vm, address)
-		check(err)
+		if err != nil {
+			return
+		}
 	}
 }
 
@@ -211,7 +253,7 @@ func ret(vm *VM, address uint16) (uint16, error) {
 }
 
 func out(vm *VM, address uint16) (uint16, error) {
-	vm.output += strconv.Itoa(int(get_val(vm, address+1)))
+	vm.output = append(vm.output, byte(get_val(vm, address+1)))
 	return address + 2, nil
 }
 
