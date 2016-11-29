@@ -50,6 +50,9 @@ get_val(Memory *memory, uint16_t address)
     fprintf(stderr, "Out of bounds index\n");
     exit(1);
   }
+  if(memory->array[address] > 0x7FFF) {
+    return memory->array[memory->array[address] - 0x8000];
+  }
   return memory->array[address];
 }
 
