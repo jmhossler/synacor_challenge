@@ -5,10 +5,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 )
 
 var function_map = map[string]func(*VM, uint16) (uint16, error){
@@ -67,7 +69,7 @@ type VM struct {
 	memory   [32768]uint16
 	register [8]uint16
 	stack    Stack
-	output   []byte
+	output   string
 	input    *os.File
 }
 
@@ -86,44 +88,56 @@ func main() {
 	for i := 0; i < len(byte_array); i += 2 {
 		vm.memory[int(i/2)] = read_uint16(byte_array[i : i+2])
 	}
+	var curr_address uint16 = 0
 
-	//tmpl := "index.html.template"
+	tmpl := "index.html.template"
+	memory_tmpl := "memory.html"
+	mem_vals_tmpl := "mem_vals.html"
 
 	normal_handler := func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "%s", vm.output)
-		/*
-			t, err := template.ParseFiles(tmpl)
-			check(err)
-			t.Execute(w, vm)
-		*/
+		t, err := template.ParseFiles(tmpl)
+		check(err)
+		memory_t, err := template.ParseFiles(memory_tmpl)
+		check(err)
+		mem_vals, err := template.ParseFiles(mem_vals_tmpl)
+
+		var doc bytes.Buffer
+		memory_t.Execute(&doc, template.HTML(strings.Replace(vm.output, "\n", "<br>", -1)))
+		mem_vals.Execute(&doc, template.HTML(strings.Replace(format_mem(&vm), "\n", "<br>", -1)))
+		position := fmt.Sprintf("<div id=\"header\">Address: %05d</div>%s", curr_address, doc.String())
+		t.Execute(w, template.HTML(position))
 	}
 
-	var curr_address uint16 = 0
 	step_handler := func(w http.ResponseWriter, r *http.Request) {
 		var err error
-		curr_address, err = step(&vm, curr_address)
-		check(err)
-
-		/*
-			t, err := template.ParseFiles(tmpl)
-			check(err)
-			t.Execute(w, vm)
-		*/
+		if r.Method == "POST" {
+			curr_address, err = step(&vm, curr_address)
+			if err != nil {
+				vm.output += err.Error() + "\n"
+			}
+			http.Redirect(w, r, "/", http.StatusFound)
+		}
 	}
 
 	execute_handler := func(w http.ResponseWriter, r *http.Request) {
-		go execute(&vm, curr_address)
-		/*
-			t, err := template.ParseFiles(tmpl)
-			check(err)
-
-			t.Execute(w, vm)
-		*/
+		if r.Method == "POST" {
+			go execute(&vm, &curr_address)
+			http.Redirect(w, r, "/", http.StatusFound)
+		}
 	}
 
-	http.HandleFunc("/step", step_handler)
+	reset_handler := func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			curr_address = 0
+			vm.output += "\n--------\n"
+			http.Redirect(w, r, "/", http.StatusFound)
+		}
+	}
+
 	http.HandleFunc("/", normal_handler)
 	http.HandleFunc("/execute", execute_handler)
+	http.HandleFunc("/step", step_handler)
+	http.HandleFunc("/reset", reset_handler)
 
 	log.Fatal(http.ListenAndServe("localhost:8000", nil))
 
@@ -132,10 +146,18 @@ func main() {
 	//fmt.Printf("%s\n", vm.output)
 }
 
-func execute(vm *VM, address uint16) {
+func format_mem(vm *VM) string {
+	var str string
+	for i := 0; i < len(vm.memory); i++ {
+		str += fmt.Sprintf("%05d: %05d\n", uint16(i), vm.memory[i])
+	}
+	return str
+}
+
+func execute(vm *VM, address *uint16) {
 	var err error
 	for {
-		address, err = step(vm, address)
+		*address, err = step(vm, *address)
 		if err != nil {
 			return
 		}
@@ -174,8 +196,12 @@ func (s Stack) Push(v uint16) Stack {
 	return append(s, v)
 }
 
+func (s Stack) isEmpty() bool {
+	return len(s) == 0
+}
+
 func (s Stack) Pop() (Stack, uint16) {
-	if len(s) == 0 {
+	if s.isEmpty() {
 		return s, 0
 	} else {
 		return s[:len(s)-1], s[len(s)-1]
@@ -187,79 +213,123 @@ func halt(vm *VM, address uint16) (uint16, error) {
 }
 
 func set(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("set not implemented yet")
+	set_val(vm, get_val(vm, address+1)+0x7FFF, get_val(vm, address+2))
+	return address + 3, nil
 }
 
 func push(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("push not implemented yet")
+	vm.stack.Push(get_val(vm, address+1))
+	return address + 2, nil
 }
 
 func pop(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("pop not implemented yet")
+	var value uint16
+	vm.stack, value = vm.stack.Pop()
+	set_val(vm, get_val(vm, address+1), value)
+	return address + 2, nil
 }
 
 func eq(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("eq not implemented yet")
+	a := get_val(vm, address+1)
+	b := get_val(vm, address+2)
+	c := get_val(vm, address+3)
+	if b == c {
+		set_val(vm, a, 1)
+	} else {
+		set_val(vm, a, 0)
+	}
+	return address + 4, nil
 }
 
 func gt(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("gt not implemented yet")
+	a := get_val(vm, address+1)
+	b := get_val(vm, address+2)
+	c := get_val(vm, address+3)
+	if b > c {
+		set_val(vm, a, 1)
+	} else {
+		set_val(vm, a, 0)
+	}
+	return address + 4, nil
 }
 
 func jmp(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("jmp not implemented yet")
+	return get_val(vm, address+1), nil
 }
 
 func jt(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("jt not implemented yet")
+	if get_val(vm, address+1) != 0 {
+		return get_val(vm, address+2), nil
+	} else {
+		return address + 3, nil
+	}
 }
 
 func jf(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("jf not implemented yet")
+	if get_val(vm, address+1) == 0 {
+		return get_val(vm, address+2), nil
+	} else {
+		return address + 3, nil
+	}
 }
 
 func add(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("add not implemented yet")
+	set_val(vm, get_val(vm, address+1), (get_val(vm, address+2)+get_val(vm, address+3))&0x7FFF)
+	return address + 4, nil
 }
 
 func mult(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("mult not implemented yet")
+	set_val(vm, get_val(vm, address+1), (get_val(vm, address+2)*get_val(vm, address+3))&0x7FFF)
+	return address + 4, nil
 }
 
 func mod(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("mod not implemented yet")
+	set_val(vm, get_val(vm, address+1), uint16(int(get_val(vm, address+2))%int(get_val(vm, address+3))))
+	return address + 4, nil
 }
 
 func and(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("and not implemented yet")
+	set_val(vm, get_val(vm, address+1), get_val(vm, address+2)&get_val(vm, address+3))
+	return address + 4, nil
 }
 
 func or(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("or not implemented yet")
+	set_val(vm, get_val(vm, address+1), get_val(vm, address+2)|get_val(vm, address+3))
+	return address + 4, nil
 }
 
 func not(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("not not implemented yet")
+	set_val(vm, get_val(vm, address+1), ^(get_val(vm, address+2))&0x7FFF)
+	return address + 3, nil
 }
 
 func rmem(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("rmem not implemented yet")
+	set_val(vm, get_val(vm, address+1), get_val(vm, get_val(vm, address+2)))
+	return address + 3, nil
 }
 
 func wmem(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("wmem not implemented yet")
+	set_val(vm, get_val(vm, address+1), get_val(vm, address+2))
+	return address + 3, nil
 }
 
 func call(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("call not implemented yet")
+	vm.stack.Push(address + 2)
+	return get_val(vm, address+1), nil
 }
 
 func ret(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("ret not implemented yet")
+	if vm.stack.isEmpty() {
+		return halt(vm, address)
+	} else {
+		var value uint16
+		vm.stack, value = vm.stack.Pop()
+		return value, nil
+	}
 }
 
 func out(vm *VM, address uint16) (uint16, error) {
-	vm.output = append(vm.output, byte(get_val(vm, address+1)))
+	vm.output += string(rune(get_val(vm, address+1)))
 	return address + 2, nil
 }
 
@@ -272,11 +342,26 @@ func noop(vm *VM, address uint16) (uint16, error) {
 }
 
 func get_val(vm *VM, address uint16) uint16 {
+	var val uint16
 	if int(address) < len(vm.memory) {
-		return vm.memory[int(address)]
+		val = vm.memory[int(address)]
 	} else if int(address)%len(vm.memory) < len(vm.register) {
-		return vm.register[int(address)%len(vm.memory)]
+		val = vm.register[int(address)%len(vm.memory)]
 	} else {
-		return 0
+		val = 0
+	}
+	fmt.Printf("Address %d: %d\n", int(address), int(val))
+	if val > 0x7FFF {
+		return vm.register[val-0x8000]
+	} else {
+		return val
+	}
+}
+
+func set_val(vm *VM, address uint16, value uint16) {
+	if int(address) < len(vm.memory) {
+		vm.memory[address] = value
+	} else if int(address)%len(vm.memory) < len(vm.register) {
+		vm.register[int(address)%len(vm.memory)] = value
 	}
 }

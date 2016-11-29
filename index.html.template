@@ -1,7 +1,59 @@
-<h1>Output:</h1>
-
-<form action="/step/" method="POST">
-<div>{{printf "%s" .Output}}</div>
-<div><input type="submit" value="Step"></div>
-<div><input type="submit" value="Execute"></div>
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+#header {
+  height=10%;
+  margin: auto;
+  float: top;
+  display: inline-block;
+}
+#options {
+  width:75%;
+  display: inline-block;
+  text-align: center;
+}
+#Output {
+  float: left;
+  border-style: solid;
+  font-size: 10px;
+  width:100%;
+  margin:auto;
+  height: 100px;
+  overflow: scroll;
+  overflow-y: auto;
+  background-color: #CCF;
+}
+#Values {
+  float: right;
+  border-style: solid;
+  font-size: 10px;
+  width: 200px;
+  margin-right:-200px;
+  height: 100px;
+  background-color: #FFA;
+  overflow: scroll;
+  overflow-y: auto;
+}
+</style>
+</head>
+{{.}}
+<script>
+var elmnt = document.getElementById("Output")
+elmnt.scrollTop = elmnt.scrollHeight
+var mem_vals = document.getElementById("Values")
+mem_vals.scrollTop = 0
+</script>
+<div id="options">
+<form action="/step" method="POST">
+<div><input id="button" type="submit" value="Step"></div>
 </form>
+<form action="/execute" method="POST">
+<div><input id="button" type="submit" value="Execute"></div>
+</form>
+<form action="/reset" method="POST">
+<div><input id="button" type="submit" value="Reset"></div>
+</form>
+</div>
+</div>
+</html>
