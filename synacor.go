@@ -213,7 +213,7 @@ func halt(vm *VM, address uint16) (uint16, error) {
 }
 
 func set(vm *VM, address uint16) (uint16, error) {
-	set_val(vm, get_val(vm, address+1)+0x7FFF, get_val(vm, address+2))
+	vm.register[get_val(vm, address+1)] = get_val(vm, address+2)
 	return address + 3, nil
 }
 
