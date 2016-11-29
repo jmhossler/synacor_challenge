@@ -82,7 +82,7 @@ execute(VM *vm, uint16_t address)
     return;
   }
   //display_reg(vm->memory);
-  uint16_t op_code = get_val(vm->memory, address);
+  uint16_t op_code = *get_val(vm->memory, address);
   //printf("Function %u\n", (unsigned int) op_code);
   ptr_to_func func = get_func(op_code);
   if(func == NULL)
@@ -116,7 +116,7 @@ halt(VM *vm, uint16_t address)
 uint16_t
 out(VM *vm, uint16_t address)
 {
-  printf("%c", (char) get_val(vm->memory, address + 1));
+  printf("%c", (char) *get_val(vm->memory, address + 1));
 
   return address + 2;
 }
@@ -130,33 +130,33 @@ noop(VM *vm, uint16_t address)
 uint16_t
 set(VM *vm, uint16_t address)
 {
-  set_val(vm->memory, get_val(vm->memory, address + 1) + 32768, get_val(vm->memory, address + 2));
+  *get_val(vm->memory, address + 1) = *get_val(vm->memory, address + 2);
   return address + 3;
 }
 
 uint16_t
 push(VM *vm, uint16_t address)
 {
-  stack_push(vm->stack, get_val(vm->memory, address + 1));
+  stack_push(vm->stack, *get_val(vm->memory, address + 1));
   return address + 2;
 }
 
 uint16_t
 pop(VM *vm, uint16_t address)
 {
-  set_val(vm->memory, address + 1, stack_pop(vm->stack));
+  *get_val(vm->memory, address + 1) = stack_pop(vm->stack);
   return address + 2;
 }
 
 uint16_t
 eq(VM *vm, uint16_t address)
 {
-  if(get_val(vm->memory, address + 2) == get_val(vm->memory, address + 3))
+  if(*get_val(vm->memory, address + 2) == *get_val(vm->memory, address + 3))
   {
-    set_val(vm->memory, address + 1, 1);
+    *get_val(vm->memory, address + 1) = 1;
   } else
   {
-    set_val(vm->memory, address + 1, 0);
+    *get_val(vm->memory, address + 1) = 0;
   }
   return address + 4;
 }
@@ -164,12 +164,12 @@ eq(VM *vm, uint16_t address)
 uint16_t
 gt(VM *vm, uint16_t address)
 {
-  if(get_val(vm->memory, address + 2) > get_val(vm->memory, address + 3))
+  if(*get_val(vm->memory, address + 2) > *get_val(vm->memory, address + 3))
   {
-    set_val(vm->memory, address + 1, 1);
+    *get_val(vm->memory, address + 1) = 1;
   } else
   {
-    set_val(vm->memory, address + 1, 0);
+    *get_val(vm->memory, address + 1) = 0;
   }
   return address + 4;
 }
@@ -177,15 +177,15 @@ gt(VM *vm, uint16_t address)
 uint16_t
 jmp(VM *vm, uint16_t address)
 {
-  return get_val(vm->memory, address + 1);
+  return *get_val(vm->memory, address + 1);
 }
 
 uint16_t
 jt(VM *vm, uint16_t address)
 {
-  if(get_val(vm->memory, address + 1) != 0)
+  if(*get_val(vm->memory, address + 1) != 0)
   {
-    return get_val(vm->memory, address + 2);
+    return *get_val(vm->memory, address + 2);
   } else
   {
     return address + 3;
@@ -195,9 +195,9 @@ jt(VM *vm, uint16_t address)
 uint16_t
 jf(VM *vm, uint16_t address)
 {
-  if(get_val(vm->memory, address + 1) == 0)
+  if(*get_val(vm->memory, address + 1) == 0)
   {
-    return get_val(vm->memory, address + 2);
+    return *get_val(vm->memory, address + 2);
   } else
   {
     return address + 3;
@@ -207,59 +207,59 @@ jf(VM *vm, uint16_t address)
 uint16_t
 add(VM *vm, uint16_t address)
 {
-  uint16_t result = get_val(vm->memory, address + 2) + get_val(vm->memory, address + 3);
-  set_val(vm->memory, get_val(vm->memory, address + 1), result % 32768);
+  uint16_t result = *get_val(vm->memory, address + 2) + *get_val(vm->memory, address + 3);
+  *get_val(vm->memory, address + 1) = result % 32768;
   return address + 4;
 }
 
 uint16_t
 mult(VM *vm, uint16_t address)
 {
-  uint16_t result = get_val(vm->memory, address + 2) + get_val(vm->memory, address + 3);
-  set_val(vm->memory, get_val(vm->memory, address + 1), result % 32768);
+  uint16_t result = *get_val(vm->memory, address + 2) + *get_val(vm->memory, address + 3);
+  *get_val(vm->memory, address + 1) = result % 32768;
   return address + 4;
 }
 
 uint16_t
 mod(VM *vm, uint16_t address)
 {
-  uint16_t result = get_val(vm->memory, address + 2) % get_val(vm->memory, address + 3);
-  set_val(vm->memory, get_val(vm->memory, address + 1), result % 32768);
+  uint16_t result = *get_val(vm->memory, address + 2) % *get_val(vm->memory, address + 3);
+  *get_val(vm->memory, address + 1) = result % 32768;
   return address + 4;
 }
 
 uint16_t
 and(VM *vm, uint16_t address)
 {
-  set_val(vm->memory, get_val(vm->memory, address + 1), get_val(vm->memory, address + 2) & get_val(vm->memory, address + 3));
+  *get_val(vm->memory, address + 1) = *get_val(vm->memory, address + 2) & *get_val(vm->memory, address + 3);
   return address + 4;
 }
 
 uint16_t
 or(VM *vm, uint16_t address)
 {
-  set_val(vm->memory, get_val(vm->memory, address + 1), get_val(vm->memory, address + 2) | get_val(vm->memory, address + 3));
+  *get_val(vm->memory, address + 1) = *get_val(vm->memory, address + 2) | *get_val(vm->memory, address + 3);
   return address + 4;
 }
 
 uint16_t
 not(VM *vm, uint16_t address)
 {
-  set_val(vm->memory, get_val(vm->memory, address + 1), ~(get_val(vm->memory, address + 2)) & 0x7FFF);
+  *get_val(vm->memory, address + 1) = ~(*get_val(vm->memory, address + 2)) & 0x7FFF;
   return address + 3;
 }
 
 uint16_t
 rmem(VM *vm, uint16_t address)
 {
-  set_val(vm->memory, get_val(vm->memory, address + 1), get_val(vm->memory, get_val(vm->memory, address + 2)));
+  *get_val(vm->memory, address + 1) = *get_val(vm->memory, *get_val(vm->memory, address + 2));
   return address + 3;
 }
 
 uint16_t
 wmem(VM *vm, uint16_t address)
 {
-  set_val(vm->memory, get_val(vm->memory, address + 1), get_val(vm->memory, address + 2));
+  *get_val(vm->memory, address + 1) = *get_val(vm->memory, address + 2);
   return address + 3;
 }
 
@@ -267,7 +267,7 @@ uint16_t
 call(VM *vm, uint16_t address)
 {
   stack_push(vm->stack, address + 2);
-  return get_val(vm->memory, address + 1);
+  return *get_val(vm->memory, address + 1);
 }
 
 uint16_t

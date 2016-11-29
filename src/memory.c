@@ -42,7 +42,7 @@ little_endian_to_16(uint8_t little, uint8_t big)
   return (((uint16_t) big) << 8) + (uint16_t) little;
 }
 
-uint16_t
+uint16_t *
 get_val(Memory *memory, uint16_t address)
 {
   if(address >= memory->size + 8)
@@ -51,9 +51,9 @@ get_val(Memory *memory, uint16_t address)
     exit(1);
   }
   if(memory->array[address] > 0x7FFF) {
-    return memory->array[memory->array[address] - 0x8000];
+    return &memory->array[memory->array[address] - 0x8000];
   }
-  return memory->array[address];
+  return &memory->array[address];
 }
 
 void

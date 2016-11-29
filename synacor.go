@@ -66,11 +66,12 @@ var op_code_map = map[int]string{
 type Stack []uint16
 
 type VM struct {
-	memory   [32768]uint16
-	register [8]uint16
-	stack    Stack
-	output   string
-	input    *os.File
+	memory       [32768]uint16
+	register     [8]uint16
+	stack        Stack
+	output       string
+	memory_trace string
+	input        *os.File
 }
 
 func main() {
@@ -103,7 +104,7 @@ func main() {
 
 		var doc bytes.Buffer
 		memory_t.Execute(&doc, template.HTML(strings.Replace(vm.output, "\n", "<br>", -1)))
-		mem_vals.Execute(&doc, template.HTML(strings.Replace(format_mem(&vm), "\n", "<br>", -1)))
+		mem_vals.Execute(&doc, template.HTML(strings.Replace(vm.memory_trace, "\n", "<br>", -1)))
 		position := fmt.Sprintf("<div id=\"header\">Address: %05d</div>%s", curr_address, doc.String())
 		t.Execute(w, template.HTML(position))
 	}
@@ -146,6 +147,7 @@ func main() {
 	//fmt.Printf("%s\n", vm.output)
 }
 
+/*
 func format_mem(vm *VM) string {
 	var str string
 	for i := 0; i < len(vm.memory); i++ {
@@ -153,6 +155,7 @@ func format_mem(vm *VM) string {
 	}
 	return str
 }
+*/
 
 func execute(vm *VM, address *uint16) {
 	var err error
@@ -345,7 +348,7 @@ func noop(vm *VM, address uint16) (uint16, error) {
 func get_val(vm *VM, address uint16) *uint16 {
 	val := vm.memory[address]
 
-	fmt.Printf("Address %d: %d\n", int(address), int(val))
+	vm.memory_trace += fmt.Sprintf("Address %d: %d\n", int(address), int(val))
 	if val > 0x7FFF {
 		return &vm.register[val&0x7FFF]
 	} else {
