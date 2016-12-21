@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 )
 
 var function_map = map[string]func(*VM, uint16) (uint16, error){
@@ -66,11 +65,11 @@ var op_code_map = map[int]string{
 type Stack []uint16
 
 type VM struct {
-	memory   [32768]uint16
-	register [8]uint16
-	stack    Stack
-	output   string
-	input    *os.File
+	Memory   [32768]uint16
+	Register [8]uint16
+	Stack    Stack
+	Output   bytes.Buffer
+	Input    *os.File
 }
 
 func main() {
@@ -96,16 +95,7 @@ func main() {
 
 	normal_handler := func(w http.ResponseWriter, r *http.Request) {
 		t, err := template.ParseFiles(tmpl)
-		check(err)
-		memory_t, err := template.ParseFiles(memory_tmpl)
-		check(err)
-		mem_vals, err := template.ParseFiles(mem_vals_tmpl)
-
-		var doc bytes.Buffer
-		memory_t.Execute(&doc, template.HTML(strings.Replace(vm.output, "\n", "<br>", -1)))
-		mem_vals.Execute(&doc, template.HTML(strings.Replace(format_mem(&vm), "\n", "<br>", -1)))
-		position := fmt.Sprintf("<div id=\"header\">Address: %05d</div>%s", curr_address, doc.String())
-		t.Execute(w, template.HTML(position))
+		t.Execute(w, vm)
 	}
 
 	step_handler := func(w http.ResponseWriter, r *http.Request) {
@@ -146,8 +136,8 @@ func main() {
 	//fmt.Printf("%s\n", vm.output)
 }
 
-func format_mem(vm *VM) string {
-	var str string
+func format_mem(vm *VM) bytes.Buffer {
+	var str bytes.Buffer
 	for i := 0; i < len(vm.memory); i++ {
 		str += fmt.Sprintf("%05d: %05d\n", uint16(i), vm.memory[i])
 	}
