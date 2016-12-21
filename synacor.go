@@ -136,13 +136,16 @@ func main() {
 	//fmt.Printf("%s\n", vm.output)
 }
 
-func format_mem(vm *VM) bytes.Buffer {
-	var str bytes.Buffer
+/*
+func format_mem(vm *VM) string {
+	var str string
+>>>>>>> origin/master
 	for i := 0; i < len(vm.memory); i++ {
 		str += fmt.Sprintf("%05d: %05d\n", uint16(i), vm.memory[i])
 	}
 	return str
 }
+*/
 
 func execute(vm *VM, address *uint16) {
 	var err error
@@ -155,7 +158,7 @@ func execute(vm *VM, address *uint16) {
 }
 
 func step(vm *VM, address uint16) (uint16, error) {
-	op_code := get_val(vm, address)
+	op_code := *get_val(vm, address)
 	f := function_map[op_code_map[int(op_code)]]
 	return f(vm, address)
 }
@@ -203,19 +206,20 @@ func halt(vm *VM, address uint16) (uint16, error) {
 }
 
 func set(vm *VM, address uint16) (uint16, error) {
-	vm.register[get_val(vm, address+1)] = get_val(vm, address+2)
+	ptr := get_val(vm, address+1)
+	*ptr = *get_val(vm, address+2)
 	return address + 3, nil
 }
 
 func push(vm *VM, address uint16) (uint16, error) {
-	vm.stack.Push(get_val(vm, address+1))
+	vm.stack.Push(*get_val(vm, address+1))
 	return address + 2, nil
 }
 
 func pop(vm *VM, address uint16) (uint16, error) {
 	var value uint16
 	vm.stack, value = vm.stack.Pop()
-	set_val(vm, get_val(vm, address+1), value)
+	*get_val(vm, address+1) = value
 	return address + 2, nil
 }
 
@@ -223,10 +227,10 @@ func eq(vm *VM, address uint16) (uint16, error) {
 	a := get_val(vm, address+1)
 	b := get_val(vm, address+2)
 	c := get_val(vm, address+3)
-	if b == c {
-		set_val(vm, a, 1)
+	if *b == *c {
+		*a = 1
 	} else {
-		set_val(vm, a, 0)
+		*a = 0
 	}
 	return address + 4, nil
 }
@@ -235,77 +239,77 @@ func gt(vm *VM, address uint16) (uint16, error) {
 	a := get_val(vm, address+1)
 	b := get_val(vm, address+2)
 	c := get_val(vm, address+3)
-	if b > c {
-		set_val(vm, a, 1)
+	if *b > *c {
+		*a = 1
 	} else {
-		set_val(vm, a, 0)
+		*a = 0
 	}
 	return address + 4, nil
 }
 
 func jmp(vm *VM, address uint16) (uint16, error) {
-	return get_val(vm, address+1), nil
+	return *get_val(vm, address+1), nil
 }
 
 func jt(vm *VM, address uint16) (uint16, error) {
-	if get_val(vm, address+1) != 0 {
-		return get_val(vm, address+2), nil
+	if *get_val(vm, address+1) != 0 {
+		return *get_val(vm, address+2), nil
 	} else {
 		return address + 3, nil
 	}
 }
 
 func jf(vm *VM, address uint16) (uint16, error) {
-	if get_val(vm, address+1) == 0 {
-		return get_val(vm, address+2), nil
+	if *get_val(vm, address+1) == 0 {
+		return *get_val(vm, address+2), nil
 	} else {
 		return address + 3, nil
 	}
 }
 
 func add(vm *VM, address uint16) (uint16, error) {
-	set_val(vm, get_val(vm, address+1), (get_val(vm, address+2)+get_val(vm, address+3))&0x7FFF)
+	*get_val(vm, address+1) = (*get_val(vm, address+2) + *get_val(vm, address+3)) & 0x7FFF
 	return address + 4, nil
 }
 
 func mult(vm *VM, address uint16) (uint16, error) {
-	set_val(vm, get_val(vm, address+1), (get_val(vm, address+2)*get_val(vm, address+3))&0x7FFF)
+	*get_val(vm, address+1) = (*get_val(vm, address+2) * *get_val(vm, address+3)) & 0x7FFF
 	return address + 4, nil
 }
 
 func mod(vm *VM, address uint16) (uint16, error) {
-	set_val(vm, get_val(vm, address+1), uint16(int(get_val(vm, address+2))%int(get_val(vm, address+3))))
+	*get_val(vm, address+1) = uint16(int(*get_val(vm, address+2)) % int(*get_val(vm, address+3)))
 	return address + 4, nil
 }
 
 func and(vm *VM, address uint16) (uint16, error) {
-	set_val(vm, get_val(vm, address+1), get_val(vm, address+2)&get_val(vm, address+3))
+	*get_val(vm, address+1) = *get_val(vm, address+2) & (*get_val(vm, address+3))
 	return address + 4, nil
 }
 
 func or(vm *VM, address uint16) (uint16, error) {
-	set_val(vm, get_val(vm, address+1), get_val(vm, address+2)|get_val(vm, address+3))
+	*get_val(vm, address+1) = *get_val(vm, address+2) | *get_val(vm, address+3)
 	return address + 4, nil
 }
 
 func not(vm *VM, address uint16) (uint16, error) {
-	set_val(vm, get_val(vm, address+1), ^(get_val(vm, address+2))&0x7FFF)
+	*get_val(vm, address+1) = ^(*get_val(vm, address+2)) & 0x7FFF
 	return address + 3, nil
 }
 
 func rmem(vm *VM, address uint16) (uint16, error) {
-	set_val(vm, get_val(vm, address+1), get_val(vm, get_val(vm, address+2)))
+	*get_val(vm, address+1) = *get_val(vm, *get_val(vm, address+2))
 	return address + 3, nil
 }
 
 func wmem(vm *VM, address uint16) (uint16, error) {
-	set_val(vm, get_val(vm, address+1), get_val(vm, address+2))
+	*get_val(vm, address+1) = *get_val(vm, address+2)
 	return address + 3, nil
 }
 
 func call(vm *VM, address uint16) (uint16, error) {
 	vm.stack.Push(address + 2)
-	return get_val(vm, address+1), nil
+	return *get_val(vm, address+1), nil
 }
 
 func ret(vm *VM, address uint16) (uint16, error) {
@@ -319,7 +323,7 @@ func ret(vm *VM, address uint16) (uint16, error) {
 }
 
 func out(vm *VM, address uint16) (uint16, error) {
-	vm.output += string(rune(get_val(vm, address+1)))
+	vm.output += string(rune(*get_val(vm, address+1)))
 	return address + 2, nil
 }
 
@@ -331,20 +335,14 @@ func noop(vm *VM, address uint16) (uint16, error) {
 	return address + 1, nil
 }
 
-func get_val(vm *VM, address uint16) uint16 {
-	var val uint16
-	if int(address) < len(vm.memory) {
-		val = vm.memory[int(address)]
-	} else if int(address)%len(vm.memory) < len(vm.register) {
-		val = vm.register[int(address)%len(vm.memory)]
-	} else {
-		val = 0
-	}
-	fmt.Printf("Address %d: %d\n", int(address), int(val))
+func get_val(vm *VM, address uint16) *uint16 {
+	val := vm.memory[address]
+
+	vm.memory_trace += fmt.Sprintf("Address %d: %d\n", int(address), int(val))
 	if val > 0x7FFF {
-		return vm.register[val-0x8000]
+		return &vm.register[val&0x7FFF]
 	} else {
-		return val
+		return &val
 	}
 }
 
