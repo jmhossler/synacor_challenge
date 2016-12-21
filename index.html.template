@@ -37,13 +37,8 @@
 }
 </style>
 </head>
-{{.}}
-<script>
-var elmnt = document.getElementById("Output")
-elmnt.scrollTop = elmnt.scrollHeight
-var mem_vals = document.getElementById("Values")
-mem_vals.scrollTop = 0
-</script>
+<div id="header">Output:</div>
+<div id="Output">{{.Output | replaceNewLines}}</div>
 <div id="options">
 <form action="/step" method="POST">
 <div><input id="button" type="submit" value="Step"></div>

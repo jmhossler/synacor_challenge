@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 )
 
 var functionMap = map[string]func(*VM, uint16) (uint16, error){
@@ -62,8 +63,10 @@ var opCodeMap = map[int]string{
 	21: "noop",
 }
 
+// Stack simple stack for memory values
 type Stack []uint16
 
+// VM the 'vm'
 type VM struct {
 	Memory      [32768]uint16
 	Register    [8]uint16
@@ -72,6 +75,11 @@ type VM struct {
 	MemoryTrace bytes.Buffer
 	Input       *os.File
 }
+
+const (
+	post = "POST"
+	get  = "GET"
+)
 
 func main() {
 	if len(os.Args[1:]) < 1 {
@@ -88,39 +96,39 @@ func main() {
 	for i := 0; i < len(byteArray); i += 2 {
 		vm.Memory[int(i/2)] = readUint16(byteArray[i : i+2])
 	}
-	var currAddress uint16 = 0
+	var currAddress uint16
 
 	tmpl := "index.html.template"
 
 	normalHandler := func(w http.ResponseWriter, r *http.Request) {
-		t, err := template.ParseFiles(tmpl)
+		report, err := template.New("report").Funcs(template.FuncMap{"replaceNewLines": replaceNewLines}).ParseFiles(tmpl)
 		check(err)
 
-		t.Execute(w, vm)
+		report.Execute(w, vm)
 	}
 
 	stepHandler := func(w http.ResponseWriter, r *http.Request) {
 		var err error
-		if r.Method == "POST" {
-			currAddress, err = step(&vm, curr_address)
+		if r.Method == post {
+			currAddress, err = step(&vm, currAddress)
 			if err != nil {
-				vm.Output += err.Error() + "\n"
+				vm.Output.WriteString(err.Error() + "\n")
 			}
 			http.Redirect(w, r, "/", http.StatusFound)
 		}
 	}
 
 	executeHandler := func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" {
+		if r.Method == post {
 			go execute(&vm, &currAddress)
 			http.Redirect(w, r, "/", http.StatusFound)
 		}
 	}
 
 	resetHandler := func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" {
+		if r.Method == post {
 			currAddress = 0
-			vm.Output += "\n--------\n"
+			vm.Output.WriteString("\n--------\n")
 			http.Redirect(w, r, "/", http.StatusFound)
 		}
 	}
@@ -135,6 +143,11 @@ func main() {
 	//outputMemory(os.Stdout, vm)
 	//execute(&vm, 0)
 	//fmt.Printf("%s\n", vm.Output)
+}
+
+func replaceNewLines(s bytes.Buffer) template.HTML {
+	str := s.String()
+	return template.HTML(strings.Replace(str, "\n", "<br>", -1))
 }
 
 /*
@@ -159,8 +172,8 @@ func execute(vm *VM, address *uint16) {
 }
 
 func step(vm *VM, address uint16) (uint16, error) {
-	op_code := *getVal(vm, address)
-	f := functionMap[opCodeMap[int(op_code)]]
+	opCode := *getVal(vm, address)
+	f := functionMap[opCodeMap[int(opCode)]]
 	return f(vm, address)
 }
 
@@ -186,6 +199,7 @@ func check(e error) {
 	}
 }
 
+// Push pushes stuff on
 func (s Stack) Push(v uint16) Stack {
 	return append(s, v)
 }
@@ -194,16 +208,16 @@ func (s Stack) isEmpty() bool {
 	return len(s) == 0
 }
 
+// Pop pops stuff off
 func (s Stack) Pop() (Stack, uint16) {
 	if s.isEmpty() {
 		return s, 0
-	} else {
-		return s[:len(s)-1], s[len(s)-1]
 	}
+	return s[:len(s)-1], s[len(s)-1]
 }
 
 func halt(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New(fmt.Sprintf("Halted program at address 0x%04x", address))
+	return address, fmt.Errorf("Halted program at address 0x%04x", address)
 }
 
 func set(vm *VM, address uint16) (uint16, error) {
@@ -255,56 +269,54 @@ func jmp(vm *VM, address uint16) (uint16, error) {
 func jt(vm *VM, address uint16) (uint16, error) {
 	if *getVal(vm, address+1) != 0 {
 		return *getVal(vm, address+2), nil
-	} else {
-		return address + 3, nil
 	}
+	return address + 3, nil
 }
 
 func jf(vm *VM, address uint16) (uint16, error) {
 	if *getVal(vm, address+1) == 0 {
 		return *getVal(vm, address+2), nil
-	} else {
-		return address + 3, nil
 	}
+	return address + 3, nil
 }
 
 func add(vm *VM, address uint16) (uint16, error) {
-	*getVal(vm, address+1) = (*get_val(vm, address+2) + *get_val(vm, address+3)) & 0x7FFF
+	*getVal(vm, address+1) = (*getVal(vm, address+2) + *getVal(vm, address+3)) & 0x7FFF
 	return address + 4, nil
 }
 
 func mult(vm *VM, address uint16) (uint16, error) {
-	*getVal(vm, address+1) = (*get_val(vm, address+2) * *get_val(vm, address+3)) & 0x7FFF
+	*getVal(vm, address+1) = (*getVal(vm, address+2) * *getVal(vm, address+3)) & 0x7FFF
 	return address + 4, nil
 }
 
 func mod(vm *VM, address uint16) (uint16, error) {
-	*getVal(vm, address+1) = uint16(int(*get_val(vm, address+2)) % int(*get_val(vm, address+3)))
+	*getVal(vm, address+1) = uint16(int(*getVal(vm, address+2)) % int(*getVal(vm, address+3)))
 	return address + 4, nil
 }
 
 func and(vm *VM, address uint16) (uint16, error) {
-	*getVal(vm, address+1) = *get_val(vm, address+2) & (*get_val(vm, address+3))
+	*getVal(vm, address+1) = *getVal(vm, address+2) & (*getVal(vm, address+3))
 	return address + 4, nil
 }
 
 func or(vm *VM, address uint16) (uint16, error) {
-	*getVal(vm, address+1) = *get_val(vm, address+2) | *get_val(vm, address+3)
+	*getVal(vm, address+1) = *getVal(vm, address+2) | *getVal(vm, address+3)
 	return address + 4, nil
 }
 
 func not(vm *VM, address uint16) (uint16, error) {
-	*getVal(vm, address+1) = ^(*get_val(vm, address+2)) & 0x7FFF
+	*getVal(vm, address+1) = ^(*getVal(vm, address+2)) & 0x7FFF
 	return address + 3, nil
 }
 
 func rmem(vm *VM, address uint16) (uint16, error) {
-	*getVal(vm, address+1) = *get_val(vm, *get_val(vm, address+2))
+	*getVal(vm, address+1) = *getVal(vm, *getVal(vm, address+2))
 	return address + 3, nil
 }
 
 func wmem(vm *VM, address uint16) (uint16, error) {
-	*getVal(vm, address+1) = *get_val(vm, address+2)
+	*getVal(vm, address+1) = *getVal(vm, address+2)
 	return address + 3, nil
 }
 
@@ -316,11 +328,11 @@ func call(vm *VM, address uint16) (uint16, error) {
 func ret(vm *VM, address uint16) (uint16, error) {
 	if vm.Stack.isEmpty() {
 		return halt(vm, address)
-	} else {
-		var value uint16
-		vm.Stack, value = vm.Stack.Pop()
-		return value, nil
 	}
+	var value uint16
+	vm.Stack, value = vm.Stack.Pop()
+	return value, nil
+
 }
 
 func out(vm *VM, address uint16) (uint16, error) {
@@ -329,7 +341,7 @@ func out(vm *VM, address uint16) (uint16, error) {
 }
 
 func in(vm *VM, address uint16) (uint16, error) {
-	return address, errors.New("in not implemented yet")
+	return address, fmt.Errorf("in not implemented yet")
 }
 
 func noop(vm *VM, address uint16) (uint16, error) {
@@ -342,9 +354,8 @@ func getVal(vm *VM, address uint16) *uint16 {
 	vm.MemoryTrace.WriteString(fmt.Sprintf("Address %d: %d\n", int(address), int(val)))
 	if val > 0x7FFF {
 		return &vm.Register[val&0x7FFF]
-	} else {
-		return &val
 	}
+	return &val
 }
 
 func setVal(vm *VM, address uint16, value uint16) {
