@@ -1,0 +1,13 @@
+call: 0x1571
+init x = 4
+init y = 1
+
+r = whatever I set it to
+
+def f(x, y):
+  if x == 0:
+    return y + 1
+  else if y == 0:
+    return f(x-1, r)
+  else:
+    return f(x-1,f(x,y-1))
